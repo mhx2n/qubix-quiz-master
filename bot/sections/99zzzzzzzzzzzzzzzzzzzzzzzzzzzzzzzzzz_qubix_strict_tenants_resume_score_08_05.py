@@ -109,8 +109,19 @@ def _qx126_topic_rows(group_id, uid):
         conn.close()
 
 
+def _qx126_group_owner(group_id):
+    conn = db_connect()
+    try:
+        row = conn.execute(
+            "SELECT added_by FROM saved_groups WHERE id=?", (int(group_id),),
+        ).fetchone()
+        return int(row[0] or 0) if row else 0
+    finally:
+        conn.close()
+
+
 def _gt_list(group_id, requester_id=None):  # noqa: F811
-    uid = _qx126_uid(requester_id)
+    uid = _qx126_uid(requester_id) or _qx126_group_owner(group_id)
     if uid <= 0:
         return []
     rows = _qx126_topic_rows(group_id, uid)
