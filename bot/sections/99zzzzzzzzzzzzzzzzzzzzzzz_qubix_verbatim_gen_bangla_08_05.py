@@ -433,9 +433,10 @@ async def cmd_gen(update, context):  # noqa: F811
 
     # (a) .gen 1-5 / .gen 2,4,7 → those PDF pages
     page_tokens = [t for t in normalised if _QXV_PAGESPEC.match(t)]
-    if page_tokens and _qxv_pdf_document(message) is not None or (
-        page_tokens and (getattr(context, "user_data", None) or {}).get("_qxz_last_pdf")
-    ):
+    has_pdf = _qxv_pdf_document(message) is not None or bool(
+        (getattr(context, "user_data", None) or {}).get("_qxz_last_pdf")
+    )
+    if page_tokens and has_pdf:
         parser = globals().get("_qxz_parse_pages")
         pages = []
         if callable(parser):
