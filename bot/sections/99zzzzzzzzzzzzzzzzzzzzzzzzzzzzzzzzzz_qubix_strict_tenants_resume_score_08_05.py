@@ -95,6 +95,49 @@ def _sg_get(serial, requester_id):  # noqa: F811
     )
 
 
+def _qx126_group_real(serial, uid):
+    rows = _qx126_group_rows(uid)
+    try:
+        wanted = int(serial)
+    except Exception:
+        return None
+    return int(rows[wanted - 1]["id"]) if 1 <= wanted <= len(rows) else None
+
+
+def _sg_set_prefix(group_serial, prefix):  # noqa: F811
+    uid = _qx126_uid()
+    real = _qx126_group_real(group_serial, uid)
+    if not real:
+        return False
+    conn = db_connect()
+    try:
+        cur = conn.execute(
+            "UPDATE saved_groups SET prefix=? WHERE id=? AND added_by=?",
+            (str(prefix or ""), real, uid),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def _sg_set_expl_link(group_serial, link):  # noqa: F811
+    uid = _qx126_uid()
+    real = _qx126_group_real(group_serial, uid)
+    if not real:
+        return False
+    conn = db_connect()
+    try:
+        cur = conn.execute(
+            "UPDATE saved_groups SET expl_link=? WHERE id=? AND added_by=?",
+            (str(link or ""), real, uid),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 _QX126_TOPIC_MAP = {}  # (uid, visible serial) -> (real id, group id, timestamp)
 
 
@@ -217,6 +260,8 @@ globals()["channel_list_for_user"] = channel_list_for_user
 globals()["channel_get_by_id_for_user"] = channel_get_by_id_for_user
 globals()["_sg_list"] = _sg_list
 globals()["_sg_get"] = _sg_get
+globals()["_sg_set_prefix"] = _sg_set_prefix
+globals()["_sg_set_expl_link"] = _sg_set_expl_link
 globals()["_gt_list"] = _gt_list
 globals()["_gt_get"] = _gt_get
 globals()["_sta_list"] = _sta_list
