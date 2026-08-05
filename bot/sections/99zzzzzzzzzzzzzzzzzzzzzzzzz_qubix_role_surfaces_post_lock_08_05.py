@@ -512,6 +512,28 @@ async def qx119_cmd_gen(update, context):
 globals()["cmd_gen"] = qx119_cmd_gen
 
 
+async def _qx95_result_kb(context, uid: int, chat_id: int):  # noqa: F811
+    """Use the same isolated actions on the restored classic generation card."""
+    if _qx119_role(uid) == "student":
+        rows = [
+            [InlineKeyboardButton("🎯 আমার প্র্যাকটিস", callback_data="qx112:inbox:buffer"),  # type: ignore[name-defined]
+             InlineKeyboardButton("📂 CSV", callback_data="qx119:csv")],
+            [InlineKeyboardButton("🧹 Buffer খালি", callback_data="qx119:clr"),  # type: ignore[name-defined]
+             InlineKeyboardButton("✖ বন্ধ", callback_data="qx119:close")],  # type: ignore[name-defined]
+        ]
+    else:
+        rows = [
+            [InlineKeyboardButton("📦 Buffer", callback_data="qx119:buffer"),  # type: ignore[name-defined]
+             InlineKeyboardButton("📂 Export CSV", callback_data="qx119:csv")],
+            [InlineKeyboardButton("🧹 Clear Buffer", callback_data="qx119:clr"),  # type: ignore[name-defined]
+             InlineKeyboardButton("✖ Close", callback_data="qx119:close")],  # type: ignore[name-defined]
+        ]
+    return InlineKeyboardMarkup(rows)  # type: ignore[name-defined]
+
+
+globals()["_qx95_result_kb"] = _qx95_result_kb
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 6) Delete transient publish progress after every terminal publish card
 # ─────────────────────────────────────────────────────────────────────────────
