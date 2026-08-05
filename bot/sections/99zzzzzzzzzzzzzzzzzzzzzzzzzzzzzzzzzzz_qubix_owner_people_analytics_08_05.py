@@ -312,10 +312,12 @@ def _qx127_people():
         usage = _qx127_row(uid)
         item["usage"] = usage
         out.append(item)
-    out.sort(key=lambda p: float((p.get("usage") or {}).get("last_seen") if
-                                 isinstance(p.get("usage"), dict) else
-                                 (p["usage"]["last_seen"] if p.get("usage") and
-                                  p["usage"]["last_seen"] else 0) or 0), reverse=True)
+    def _recency(item):
+        with _cx127.suppress(Exception):
+            return float(_qx127_usage_get(item.get("usage"), "last_seen", 0) or 0)
+        return 0.0
+
+    out.sort(key=_recency, reverse=True)
     return out
 
 
