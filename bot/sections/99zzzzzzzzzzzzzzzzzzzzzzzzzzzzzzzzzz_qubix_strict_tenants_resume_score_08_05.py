@@ -240,21 +240,43 @@ if callable(_qx126_prev_post):
 if callable(_qx126_prev_score):
     async def _send_score_msg(context, admin_id, chat_id, ok_count, first_post_msg_id, thread_id=None):  # noqa: F811
         job = context.__dict__.get("_qx126_stopped_job")
-        before = None
+        enabled = True
         with _cx126.suppress(Exception):
-            before = await context.bot.get_chat(chat_id)
-        result = await _qx126_prev_score(
-            context, admin_id, chat_id, ok_count, first_post_msg_id, thread_id=thread_id,
+            enabled = bool(globals()["_score_reply_enabled"](admin_id))
+        if not enabled:
+            context.__dict__.pop("_qx126_stopped_job", None)
+            return None
+        template = title = ""
+        with _cx126.suppress(Exception):
+            template, title = globals()["_qx106_score_template"](admin_id, chat_id)
+        renderer = globals().get("_qx106_render_score")
+        text = renderer(template, ok_count, title) if callable(renderer) else (
+            f"🏆 <b>আপনার স্কোর দেখুন</b>\nএই কুইজ সেটে মোট <b>{int(ok_count or 0)}</b>টি প্রশ্ন রয়েছে।"
         )
-        # The normal sender currently returns no Message. Resolve the immediately
-        # following message id from the first poll; Telegram message ids are
-        # contiguous within a chat for bot-created batch output.
+        kwargs = {
+            "chat_id": int(chat_id), "text": text, "parse_mode": ParseMode.HTML,
+            "allow_sending_without_reply": True,
+        }
+        if first_post_msg_id:
+            kwargs["reply_to_message_id"] = int(first_post_msg_id)
+        if thread_id is not None:
+            kwargs["message_thread_id"] = int(thread_id)
+        sent_message = None
+        try:
+            sent_message = await context.bot.send_message(**kwargs)
+        except Exception:
+            kwargs.pop("parse_mode", None)
+            cleaner = globals().get("_re106")
+            if cleaner is not None:
+                with _cx126.suppress(Exception):
+                    kwargs["text"] = cleaner.sub(r"<[^>]+>", "", text)
+            sent_message = await context.bot.send_message(**kwargs)
         if isinstance(job, dict):
             job["first_quiz_id"] = job.get("first_quiz_id") or first_post_msg_id
-            with _cx126.suppress(Exception):
-                job["score_message_id"] = int(first_post_msg_id) + int(ok_count or 0)
+            if sent_message is not None:
+                job["score_message_id"] = int(sent_message.message_id)
             context.__dict__.pop("_qx126_stopped_job", None)
-        return result
+        return sent_message
 
     globals()["_send_score_msg"] = _send_score_msg
 
@@ -290,6 +312,7 @@ async def qx99_cmd_resumequiz(update, context):  # noqa: F811
                 parse_mode=ParseMode.HTML,
             )
     ok = fail = 0
+    _ignored = None
     poster = globals().get("_post_buffer_to_chat")
     if callable(poster):
         ok, fail, _ignored = await poster(
