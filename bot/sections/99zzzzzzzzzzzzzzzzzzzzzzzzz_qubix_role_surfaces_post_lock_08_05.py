@@ -20,8 +20,11 @@
 
 import contextlib as _cx119
 import hashlib as _hs119
+import re as _re119
 import time as _t119
 import uuid as _uu119
+
+import telegram.ext as _tgext119
 
 
 def _qx119_log(message, level="info"):
@@ -103,7 +106,7 @@ def _qx119_card(uid, added: int, total: int) -> tuple:
             "📂 <code>.done</code> — CSV নামিয়ে buffer খালি"
         )
         rows = [
-            [InlineKeyboardButton("🎯 আমার প্র্যাকটিস", callback_data="qx119:practice"),  # type: ignore[name-defined]
+            [InlineKeyboardButton("🎯 আমার প্র্যাকটিস", callback_data="qx112:inbox:buffer"),  # type: ignore[name-defined]
              InlineKeyboardButton("📂 CSV", callback_data="qx119:csv")],
             [InlineKeyboardButton("🧹 Buffer খালি", callback_data="qx119:clr"),  # type: ignore[name-defined]
              InlineKeyboardButton("✖ বন্ধ", callback_data="qx119:close")],  # type: ignore[name-defined]
@@ -292,13 +295,10 @@ async def cb_pba(update, context):  # noqa: F811
             with _cx119.suppress(Exception):
                 await query.answer("আগের publish শেষ হওয়া পর্যন্ত অপেক্ষা করুন", show_alert=True)
             raise ApplicationHandlerStop  # type: ignore[name-defined]
-        if data.split(":")[1] == "post":
-            _qx119_publish_begin(uid, getattr(getattr(query, "message", None), "chat_id", 0))
-            try:
-                if callable(_qx119_prev_cb_pba):
-                    return await _qx119_prev_cb_pba(update, context)
-            finally:
-                _qx119_publish_end(uid)
+        if data.split(":")[1] == "post" and callable(_qx119_prev_cb_pba):
+            # `_post_buffer_to_chat` owns the lock. Taking it here as well made
+            # the nested publisher see itself as busy and silently post zero.
+            return await _qx119_prev_cb_pba(update, context)
     if callable(_qx119_prev_cb_pba):
         return await _qx119_prev_cb_pba(update, context)
     return None
@@ -453,7 +453,100 @@ if callable(_qx119_prev_report):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5) Wiring
+# 5) Restore the universal reply-based `.gen` route
+# ─────────────────────────────────────────────────────────────────────────────
+# Section 117 intentionally intercepts page-range and no-argument media harvests,
+# but its registered handler also caught `.gen 10` before the proven workspace
+# resolver. That delegated into an old staff-only OCR command and produced the
+# misleading “No OCR Context” card for ordinary photos/text/polls.
+_qx119_prev_cmd_gen = globals().get("cmd_gen")
+
+
+def _qx119_is_pdf_range_command(message, context) -> bool:
+    text = str(getattr(message, "text", "") or "").strip()
+    tokens = [token.translate(globals().get("_QXV_BN_DIGITS", {}))
+              for token in text.split()[1:] if not token.startswith("@")]
+    page_pattern = globals().get("_QXV_PAGESPEC")
+    has_range = bool(page_pattern and any(page_pattern.match(token) for token in tokens))
+    if not has_range:
+        return False
+    detector = globals().get("_qxv_pdf_document")
+    with _cx119.suppress(Exception):
+        if callable(detector) and detector(message) is not None:
+            return True
+    return bool((getattr(context, "user_data", None) or {}).get("_qxz_last_pdf"))
+
+
+async def qx119_cmd_gen(update, context):
+    """Keep new PDF/full-page features, otherwise use the stable any-reply flow."""
+    message = getattr(update, "effective_message", None)
+    if message is None:
+        if callable(_qx119_prev_cmd_gen):
+            return await _qx119_prev_cmd_gen(update, context)
+        return None
+
+    text = str(getattr(message, "text", "") or "").strip()
+    args = [token for token in text.split()[1:] if not token.startswith("@")]
+    plain_tokens = set(globals().get("_QXV_PLAIN_TOKENS") or ())
+    media_detector = globals().get("_qxv_reply_is_media")
+    is_plain_harvest = False
+    with _cx119.suppress(Exception):
+        is_plain_harvest = (
+            callable(media_detector)
+            and bool(media_detector(message))
+            and all(token.lower() in plain_tokens for token in args)
+        )
+
+    if _qx119_is_pdf_range_command(message, context) or is_plain_harvest:
+        if callable(_qx119_prev_cmd_gen):
+            return await _qx119_prev_cmd_gen(update, context)
+
+    stable = globals().get("qx95_cmd_gen")
+    if callable(stable):
+        return await stable(update, context)
+    if callable(_qx119_prev_cmd_gen):
+        return await _qx119_prev_cmd_gen(update, context)
+    return None
+
+
+globals()["cmd_gen"] = qx119_cmd_gen
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6) Delete transient publish progress after every terminal publish card
+# ─────────────────────────────────────────────────────────────────────────────
+_QX119_POST_PROGRESS = ("Posting to Channel", "Posting to Topic", "Posting to Group")
+_QX119_POST_DONE = ("Posting Complete", "Posting Failed", "Stop Requested")
+_QX119_POST_CARDS: dict = {}       # (bot identity, chat id) -> message id
+_qx119_prev_ext_send = getattr(_tgext119.ExtBot, "send_message", None)
+
+
+if callable(_qx119_prev_ext_send) and not getattr(_qx119_prev_ext_send, "_qx119_cleanup", False):
+    async def _qx119_ext_send_message(self, *args, **kwargs):
+        chat_id = kwargs.get("chat_id", args[0] if args else None)
+        text = kwargs.get("text", args[1] if len(args) > 1 else "")
+        message = await _qx119_prev_ext_send(self, *args, **kwargs)
+        body = str(text or "")
+        slot = (id(self), str(chat_id))
+        if any(marker in body for marker in _QX119_POST_PROGRESS):
+            old = _QX119_POST_CARDS.get(slot)
+            _QX119_POST_CARDS[slot] = int(getattr(message, "message_id", 0) or 0)
+            if old and old != _QX119_POST_CARDS[slot]:
+                with _cx119.suppress(Exception):
+                    await self.delete_message(chat_id=chat_id, message_id=int(old))
+        elif any(marker in body for marker in _QX119_POST_DONE):
+            old = _QX119_POST_CARDS.pop(slot, None)
+            if old:
+                with _cx119.suppress(Exception):
+                    await self.delete_message(chat_id=chat_id, message_id=int(old))
+        return message
+
+    _qx119_ext_send_message._qx119_cleanup = True  # type: ignore[attr-defined]
+    _tgext119.ExtBot.send_message = _qx119_ext_send_message
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7) Wiring
 # ─────────────────────────────────────────────────────────────────────────────
 for _qx119_ok_name in ("QX113_STUDENT_CALLBACK_OK", "QX112_STUDENT_CALLBACK_OK"):
     with _cx119.suppress(Exception):
@@ -476,6 +569,13 @@ def build_app():  # noqa: F811
         return app
     with _cx119.suppress(Exception):
         app.add_handler(CallbackQueryHandler(qx119_cb, pattern=r"^qx119:"), group=-3600)  # type: ignore[name-defined]
+    register = globals().get("_register_dual_command")
+    with _cx119.suppress(Exception):
+        if callable(register):
+            register(app, "gen", qx119_cmd_gen, group=-3601)
+        else:
+            app.add_handler(CommandHandler("gen", qx119_cmd_gen), group=-3601)  # type: ignore[name-defined]
+            app.add_handler(_build_dot_command_handler("gen", qx119_cmd_gen), group=-3601)  # type: ignore[name-defined]
     with _cx119.suppress(Exception):
         app.add_handler(
             CallbackQueryHandler(cb_pba, pattern=r"^pba:(post|list):.+$"), group=-3600,  # type: ignore[name-defined]
