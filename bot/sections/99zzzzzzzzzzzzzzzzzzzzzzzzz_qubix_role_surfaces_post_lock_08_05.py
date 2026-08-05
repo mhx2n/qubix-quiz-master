@@ -437,16 +437,20 @@ if callable(_qx119_prev_report):
                 "ℹ️ পরিষ্কার ছবি বা অন্য পৃষ্ঠা দিয়ে আবার চেষ্টা করুন।"
             )
             emoji = "ℹ️"
-        sent = None
-        with _cx119.suppress(Exception):
-            sent = await update.effective_message.reply_text(
-                _qx119_box(head, body, emoji), parse_mode=ParseMode.HTML,  # type: ignore[name-defined]
-            )
-        if sent is not None:
-            _qx119_remember_card(uid_int, sent.chat_id, int(getattr(sent, "message_id", 0) or 0))
         if int(added or 0) > 0:
+            # The action card immediately below already contains the successful
+            # batch count, serial range and buffer total.  Sending this summary
+            # as well left a redundant top card in every inbox.
             with _cx119.suppress(Exception):
                 await _send_pb_action_card(context, update.effective_message.chat_id, uid_int, int(added))
+        else:
+            sent = None
+            with _cx119.suppress(Exception):
+                sent = await update.effective_message.reply_text(
+                    _qx119_box(head, body, emoji), parse_mode=ParseMode.HTML,  # type: ignore[name-defined]
+                )
+            if sent is not None:
+                _qx119_remember_card(uid_int, sent.chat_id, int(getattr(sent, "message_id", 0) or 0))
         _QX119_ACTIVE.pop(uid_int, None)
 
     globals()["_qxv_report"] = _qxv_report
