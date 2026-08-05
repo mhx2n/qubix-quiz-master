@@ -335,11 +335,6 @@ def build_app():  # noqa: F811
         app.add_handler(
             CallbackQueryHandler(qx121_cb, pattern=r"^qx121:"), group=-30006  # type: ignore[name-defined]
         )
-    for _name in ("buffercount", "bc"):
-        with _cx121.suppress(Exception):
-            dual = globals().get("_dual")
-            if callable(dual):
-                dual(_name, qx95_cmd_buffercount, -30006)
     _qx121_log("student scrub · instant gen · pdf page gen · bc inbox wired")
     return app
 
