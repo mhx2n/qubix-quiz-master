@@ -227,20 +227,66 @@ class _QxmCursorProxy:
 _qxm_prev_db_connect = globals().get("db_connect")
 
 
+class _QxmConnectionProxy:
+    """Mark writes for Mongo mirroring without replacing DB reliability layers.
+
+    The previous implementation opened a brand-new raw sqlite connection here.
+    That silently bypassed the process-wide transaction lock installed by the
+    reliability section and allowed ensure_user/score callbacks to collide with
+    other writers.  This proxy delegates to the already-hardened connection.
+    """
+
+    __slots__ = ("_connection",)
+
+    def __init__(self, connection):
+        object.__setattr__(self, "_connection", connection)
+
+    def __getattr__(self, name):
+        return getattr(self._connection, name)
+
+    def __setattr__(self, name, value):
+        if name == "_connection":
+            object.__setattr__(self, name, value)
+            return
+        setattr(self._connection, name, value)
+
+    def cursor(self, *args, **kwargs):
+        return _QxmCursorProxy(self._connection.cursor(*args, **kwargs))
+
+    def execute(self, sql, *args, **kwargs):
+        if _QXM_WRITE.match(str(sql or "")):
+            _qxm_mark_dirty()
+        return self._connection.execute(sql, *args, **kwargs)
+
+    def executemany(self, sql, *args, **kwargs):
+        if _QXM_WRITE.match(str(sql or "")):
+            _qxm_mark_dirty()
+        return self._connection.executemany(sql, *args, **kwargs)
+
+    def executescript(self, sql, *args, **kwargs):
+        _qxm_mark_dirty()
+        return self._connection.executescript(sql, *args, **kwargs)
+
+    def __enter__(self):
+        self._connection.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        return self._connection.__exit__(*exc)
+
+
 def db_connect():  # noqa: F811
-    try:
-        conn = _sqM.connect(
-            DB_PATH, timeout=30, check_same_thread=False, factory=_QxmConnection,  # type: ignore[name-defined]
-        )
-    except Exception:
-        return _qxm_prev_db_connect()  # type: ignore[misc]
-    conn.row_factory = _sqM.Row
+    if not callable(_qxm_prev_db_connect):
+        raise RuntimeError("database connection factory is unavailable")
+    conn = _qxm_prev_db_connect()
+    if isinstance(conn, _QxmConnectionProxy):
+        return conn
     with _cxM.suppress(Exception):
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA synchronous=NORMAL;")
-        conn.execute("PRAGMA busy_timeout=5000;")
+        # The Python transaction lock owns contention/backoff.  A short SQLite
+        # wait avoids pinning Telegram workers when an external process holds DB.
+        conn.execute("PRAGMA busy_timeout=200;")
         conn.execute("PRAGMA foreign_keys=ON;")
-    return conn
+    return _QxmConnectionProxy(conn)
 
 
 if callable(_qxm_prev_db_connect):

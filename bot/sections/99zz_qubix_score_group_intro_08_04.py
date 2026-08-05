@@ -51,11 +51,19 @@ def _qx101_ensure_user(uid: int) -> None:
             with _cx101.suppress(Exception):
                 fn(uid)
                 return
-    with _cx101.suppress(Exception):
+    conn = None
+    try:
         conn = db_connect()
         conn.execute("INSERT OR IGNORE INTO users(user_id) VALUES(?)", (int(uid),))
         conn.commit()
-        conn.close()
+    except Exception:
+        with _cx101.suppress(Exception):
+            if conn is not None:
+                conn.rollback()
+    finally:
+        with _cx101.suppress(Exception):
+            if conn is not None:
+                conn.close()
 
 
 def _qx101_state(uid: int) -> bool:

@@ -29,11 +29,19 @@ def _qx116_ensure_user_row(uid: int) -> None:
             with _cx116.suppress(Exception):
                 fn(int(uid))
                 return
-    with _cx116.suppress(Exception):
+    conn = None
+    try:
         conn = db_connect()
         conn.execute("INSERT OR IGNORE INTO users(user_id) VALUES(?)", (int(uid),))
         conn.commit()
-        conn.close()
+    except Exception:
+        with _cx116.suppress(Exception):
+            if conn is not None:
+                conn.rollback()
+    finally:
+        with _cx116.suppress(Exception):
+            if conn is not None:
+                conn.close()
 
 
 def _set_score_reply(admin_id: int, val: bool) -> None:  # noqa: F811
@@ -42,7 +50,9 @@ def _set_score_reply(admin_id: int, val: bool) -> None:  # noqa: F811
     if not uid:
         return
     _qx116_ensure_user_row(uid)
-    with _cx116.suppress(Exception):
+    conn = None
+    saved = False
+    try:
         conn = db_connect()
         conn.execute(
             "INSERT INTO users(user_id, score_reply_on) VALUES(?, ?) "
@@ -50,16 +60,33 @@ def _set_score_reply(admin_id: int, val: bool) -> None:  # noqa: F811
             (uid, 1 if val else 0),
         )
         conn.commit()
-        conn.close()
+        saved = True
+    except Exception:
+        with _cx116.suppress(Exception):
+            if conn is not None:
+                conn.rollback()
+    finally:
+        with _cx116.suppress(Exception):
+            if conn is not None:
+                conn.close()
+    if saved:
         return
-    with _cx116.suppress(Exception):
+    conn = None
+    try:
         conn = db_connect()
         conn.execute(
             "UPDATE users SET score_reply_on=? WHERE user_id=?",
             (1 if val else 0, uid),
         )
         conn.commit()
-        conn.close()
+    except Exception:
+        with _cx116.suppress(Exception):
+            if conn is not None:
+                conn.rollback()
+    finally:
+        with _cx116.suppress(Exception):
+            if conn is not None:
+                conn.close()
 
 
 globals()["_set_score_reply"] = _set_score_reply
