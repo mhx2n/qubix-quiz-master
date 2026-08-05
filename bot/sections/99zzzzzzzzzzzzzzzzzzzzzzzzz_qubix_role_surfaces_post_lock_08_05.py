@@ -538,9 +538,13 @@ globals()["_qx95_result_kb"] = _qx95_result_kb
 # 6) Delete transient publish progress after every terminal publish card
 # ─────────────────────────────────────────────────────────────────────────────
 _QX119_POST_PROGRESS = ("Posting to Channel", "Posting to Topic", "Posting to Group")
-_QX119_POST_DONE = ("Posting Complete", "Posting Failed", "Stop Requested")
+_QX119_POST_DONE = (
+    "Posting Complete", "Posted", "Posting Failed", "Stop Requested",
+    "Buffer Empty", "Channel Not Found",
+)
 _QX119_POST_CARDS: dict = {}       # (bot identity, chat id) -> message id
 _qx119_prev_ext_send = getattr(_tgext119.ExtBot, "send_message", None)
+_qx119_prev_ext_edit = getattr(_tgext119.ExtBot, "edit_message_text", None)
 
 
 if callable(_qx119_prev_ext_send) and not getattr(_qx119_prev_ext_send, "_qx119_cleanup", False):
@@ -565,6 +569,36 @@ if callable(_qx119_prev_ext_send) and not getattr(_qx119_prev_ext_send, "_qx119_
 
     _qx119_ext_send_message._qx119_cleanup = True  # type: ignore[attr-defined]
     _tgext119.ExtBot.send_message = _qx119_ext_send_message
+
+
+if callable(_qx119_prev_ext_edit) and not getattr(_qx119_prev_ext_edit, "_qx119_cleanup", False):
+    async def _qx119_ext_edit_message_text(self, *args, **kwargs):
+        # ExtBot.edit_message_text(text, chat_id=None, message_id=None, ...)
+        text = kwargs.get("text", args[0] if args else "")
+        chat_id = kwargs.get("chat_id", args[1] if len(args) > 1 else None)
+        message_id = kwargs.get("message_id", args[2] if len(args) > 2 else None)
+        message = await _qx119_prev_ext_edit(self, *args, **kwargs)
+        body = str(text or "")
+        if chat_id is None:
+            chat_id = getattr(getattr(message, "chat", None), "id", None)
+        if message_id is None:
+            message_id = getattr(message, "message_id", None)
+        slot = (id(self), str(chat_id))
+        if chat_id is not None and message_id and any(marker in body for marker in _QX119_POST_PROGRESS):
+            old = _QX119_POST_CARDS.get(slot)
+            _QX119_POST_CARDS[slot] = int(message_id)
+            if old and old != int(message_id):
+                with _cx119.suppress(Exception):
+                    await self.delete_message(chat_id=chat_id, message_id=int(old))
+        elif any(marker in body for marker in _QX119_POST_DONE):
+            old = _QX119_POST_CARDS.pop(slot, None)
+            if old and int(old) != int(message_id or 0):
+                with _cx119.suppress(Exception):
+                    await self.delete_message(chat_id=chat_id, message_id=int(old))
+        return message
+
+    _qx119_ext_edit_message_text._qx119_cleanup = True  # type: ignore[attr-defined]
+    _tgext119.ExtBot.edit_message_text = _qx119_ext_edit_message_text
 
 
 # ─────────────────────────────────────────────────────────────────────────────
