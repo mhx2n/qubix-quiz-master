@@ -222,10 +222,17 @@ async def _qx129_progress(context, update, uid, done, wanted, mode, started):
     if not chat_id or not message_id:
         return
     elapsed = max(0, int(_t129.time() - started))
+    minutes, seconds = divmod(elapsed, 60)
+    elapsed_text = f"{minutes}m {seconds:02d}s" if minutes else f"{seconds}s"
+    try:
+        percent = max(0, min(100, round((int(done) / max(1, int(wanted))) * 100)))
+    except Exception:
+        percent = 0
     body = (
         f"Standard: <b>{str(mode or 'std').upper()}</b>\n"
         f"তৈরি হয়েছে: <b>{int(done)}</b> / <b>{int(wanted)}</b>\n"
-        f"সময়: <code>{elapsed}s</code>\n\n"
+        f"Progress: <b>{percent}%</b>\n"
+        f"সময়: <code>{elapsed_text}</code>\n\n"
         "🧠 Source মিলিয়ে quiz তৈরি ও যাচাই হচ্ছে…"
     )
     boxer = globals().get("ui_box_html")
