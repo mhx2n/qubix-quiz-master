@@ -124,7 +124,11 @@ if callable(_qx130_batch_generate):
         finally:
             state["done"] = True
             tick_task.cancel()
-            with _cx130.suppress(Exception):
+            # asyncio.CancelledError is a BaseException on current Python, so
+            # suppress(Exception) does not consume it.  Letting it escape here
+            # prevented the caller from replacing the 100% progress card with
+            # the normal final Quiz Ready result.
+            with _cx130.suppress(_a130.CancelledError, Exception):
                 await tick_task
 
         return int(state["added"]), int(state["dup"])
