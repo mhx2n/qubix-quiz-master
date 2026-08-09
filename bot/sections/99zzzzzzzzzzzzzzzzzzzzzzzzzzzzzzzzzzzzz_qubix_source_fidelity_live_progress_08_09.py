@@ -53,9 +53,20 @@ def _qxm_split_questions(text):  # noqa: F811
             current = [mark]
     if current:
         runs.append(current)
-    kept = max(runs, key=len, default=[])
-    if len(kept) < 2:
+    # OCR can miss one serial or read a two-column page out of sequence. Keeping
+    # only the longest run silently discarded every question in the other
+    # valid runs. Merge all consecutive runs in document order instead.
+    valid_runs = [run for run in runs if len(run) >= 2]
+    if not valid_runs:
         return []
+    kept = []
+    seen_positions = set()
+    for run in sorted(valid_runs, key=lambda value: value[0][0]):
+        for mark in run:
+            if mark[0] not in seen_positions:
+                kept.append(mark)
+                seen_positions.add(mark[0])
+    kept.sort(key=lambda value: value[0])
 
     blocks = []
     for index, (position, _number) in enumerate(kept):
