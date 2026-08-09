@@ -150,7 +150,7 @@ def _qx132_bind_caller(name):
 
 
 for _name132 in ("cmd_setprefix", "cmd_setexplink", "cmd_removechannel",
-                 "qx111_cmd_gsetprefix", "qx111_cmd_gsetexplink"):
+                 "_cmd_gsp_n", "_cmd_gsx_n"):
     _qx132_bind_caller(_name132)
 
 _log132("caller binding installed for prefix/link/remove commands")
