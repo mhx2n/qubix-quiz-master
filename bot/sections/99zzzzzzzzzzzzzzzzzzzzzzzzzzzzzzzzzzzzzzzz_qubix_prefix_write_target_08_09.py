@@ -116,3 +116,41 @@ globals()["_sg_set_expl_link"] = _sg_set_expl_link
 globals()["channel_remove"] = channel_remove
 
 _log132("prefix/explink writes now target the caller's own workspace row")
+
+
+# ── make sure the caller is known even when no acting-owner context is set ────
+_QX132_CALLER = {"uid": 0}
+_qx132_base_uid = _qx132_uid
+
+
+def _qx132_uid():  # noqa: F811
+    uid = _qx132_base_uid()
+    if uid > 0:
+        return uid
+    return int(_QX132_CALLER.get("uid") or 0)
+
+
+globals()["_qx132_uid"] = _qx132_uid
+
+
+def _qx132_bind_caller(name):
+    prev = globals().get(name)
+    if not callable(prev):
+        return
+
+    async def wrapper(update, context):
+        with _cx132.suppress(Exception):
+            _QX132_CALLER["uid"] = int(getattr(update.effective_user, "id", 0) or 0)
+        try:
+            return await prev(update, context)
+        finally:
+            _QX132_CALLER["uid"] = 0
+
+    globals()[name] = wrapper
+
+
+for _name132 in ("cmd_setprefix", "cmd_setexplink", "cmd_removechannel",
+                 "qx111_cmd_gsetprefix", "qx111_cmd_gsetexplink"):
+    _qx132_bind_caller(_name132)
+
+_log132("caller binding installed for prefix/link/remove commands")
