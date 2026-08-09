@@ -126,6 +126,82 @@ globals()["_QXZ_MATH_HINT"] = (
 )
 
 
+# The previous final math validator could run eight additional provider cascades
+# after the normal generator had already retried. A five-question request could
+# therefore occupy a worker for several minutes even after the UI timed out.
+# Keep the same prompt/provider/normaliser path, but allow at most two bounded
+# passes and return verified partial output instead of starting another cascade.
+def _generate_quizzes_from_ocr_sync(ocr_ctx, desired, user_id):  # noqa: F811
+    source = ""
+    if isinstance(ocr_ctx, dict):
+        source = str(ocr_ctx.get("clean_text") or ocr_ctx.get("raw_markdown") or "").strip()
+    else:
+        source = str(ocr_ctx or "").strip()
+    if not source:
+        raise RuntimeError("No readable OCR text found on this page.")
+    try:
+        wanted = max(1, min(200, int(desired or 1)))
+    except Exception:
+        wanted = 1
+    batcher = globals().get("_generate_batch_fast_74")
+    if not callable(batcher):
+        raise RuntimeError("Quiz generator is unavailable.")
+
+    rows = []
+    seen = set()
+    avoid = ""
+    avoid_builder = globals().get("_source_avoid_text_74")
+    if callable(avoid_builder):
+        with _cx129.suppress(Exception):
+            avoid = str(avoid_builder(ocr_ctx) or "")
+    passes = 0
+    while len(rows) < wanted and passes < 2:
+        passes += 1
+        need = min(8, wanted - len(rows))
+        recent = "\n".join("- " + str(row.get("question") or "")[:140] for row in rows[-12:])
+        generated = []
+        with _cx129.suppress(Exception):
+            generated = list(batcher(
+                source, need, avoid_text=(avoid + "\n" + recent).strip(),
+            ) or [])
+        if not generated:
+            continue
+        for item in generated:
+            if not isinstance(item, dict):
+                continue
+            question = str(item.get("question") or item.get("questions") or "").strip()
+            options = item.get("options") if isinstance(item.get("options"), list) else []
+            options = [str(option or "").strip() for option in options if str(option or "").strip()][:4]
+            try:
+                answer = int(item.get("answer") or 0)
+            except Exception:
+                answer = 0
+            if not question or len(options) != 4 or not 1 <= answer <= 4:
+                continue
+            signature = _re129.sub(r"\W+", "", question.casefold())[:120]
+            if not signature or signature in seen:
+                continue
+            # Provider output is checked here as well as before buffer insertion.
+            if not _QX129_CALCULUS.search(source) and _QX129_CALCULUS.search(
+                question + " " + str(item.get("explanation") or "")
+            ):
+                continue
+            seen.add(signature)
+            clean = dict(item)
+            clean["question"] = question
+            clean["options"] = options
+            clean["answer"] = answer
+            rows.append(clean)
+            if len(rows) >= wanted:
+                break
+    if not rows:
+        raise RuntimeError("Active AI providers returned no source-faithful quiz.")
+    return rows[:wanted]
+
+
+globals()["_generate_quizzes_from_ocr_sync"] = _generate_quizzes_from_ocr_sync
+
+
 # ── 3) Live progress on the one existing generation card ─────────────────────
 async def _qx129_progress(context, update, uid, done, wanted, mode, started):
     cards = globals().get("_QX95_LAST_GEN_CARD") or {}
