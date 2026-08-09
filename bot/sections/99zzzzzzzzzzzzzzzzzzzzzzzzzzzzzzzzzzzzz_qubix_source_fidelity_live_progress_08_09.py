@@ -150,6 +150,37 @@ async def _qx129_progress(context, update, uid, done, wanted, mode, started):
         )
 
 
+def _qx129_buffer_ids(uid):
+    ids = set()
+    with _cx129.suppress(Exception):
+        for row_id, _payload in (buffer_list(int(uid), limit=99999) or []):  # type: ignore[name-defined]
+            ids.add(int(row_id))
+    return ids
+
+
+def _qx129_remove_off_subject_calculus(uid, before_ids, source_text):
+    """Hard guard: reject newly generated calculus absent from the source."""
+    source = _qx129_source_only(source_text)
+    if _QX129_CALCULUS.search(source):
+        return 0
+    rejected = []
+    with _cx129.suppress(Exception):
+        for row_id, payload in (buffer_list(int(uid), limit=99999) or []):  # type: ignore[name-defined]
+            if int(row_id) in before_ids:
+                continue
+            candidate = " ".join((
+                str((payload or {}).get("questions") or ""),
+                str((payload or {}).get("explanation") or ""),
+            ))
+            if _QX129_CALCULUS.search(candidate):
+                rejected.append(int(row_id))
+    if rejected:
+        with _cx129.suppress(Exception):
+            buffer_remove_ids(int(uid), rejected)  # type: ignore[name-defined]
+        _log129("rejected %s off-subject calculus row(s) for uid=%s" % (len(rejected), uid))
+    return len(rejected)
+
+
 # Use the proven pre-watchdog generator one bounded batch at a time. This makes
 # real completed counts observable and prevents one 100-item call from appearing
 # frozen. The final qx95 result card still replaces this card exactly as before.
@@ -174,6 +205,7 @@ if callable(_qx129_batch_generate):
         # update the visible count. Stop safely after repeated zero-result rounds.
         while added_total < wanted and (_t129.time() - started) < 300:
             need = min(8, wanted - added_total)
+            before_ids = _qx129_buffer_ids(uid)
             try:
                 added, dup = await _a129.wait_for(
                     _qx129_batch_generate(update, context, ocr_ctx, uid, need, mode),
@@ -182,6 +214,12 @@ if callable(_qx129_batch_generate):
             except Exception as error:
                 _log129("generation batch failed: %s" % str(error)[:160], "warning")
                 added = dup = 0
+            rejected = _qx129_remove_off_subject_calculus(
+                uid, before_ids,
+                (ocr_ctx or {}).get("clean_text") or (ocr_ctx or {}).get("raw_markdown")
+                if isinstance(ocr_ctx, dict) else ocr_ctx,
+            )
+            added = max(0, int(added or 0) - int(rejected or 0))
             added_total += int(added or 0)
             dup_total += int(dup or 0)
             await _qx129_progress(
