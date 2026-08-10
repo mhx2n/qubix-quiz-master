@@ -15,6 +15,7 @@
 #     Mistral model (speed vs quality) + a live speed test.
 # ──────────────────────────────────────────────────────────────────────────────
 
+import asyncio as _a132
 import contextlib as _cx132
 import time as _t132
 import requests as _rq132
@@ -301,10 +302,9 @@ async def _qx132_speed_test():
     for engine in ("default", "mistral"):
         started = _t132.time()
         try:
-            if engine == "mistral":
-                items = await _run_blocking("owner", _qx132_mistral_batch, prompt_source, 2)  # type: ignore[name-defined]
-            else:
-                items = await _run_blocking("owner", _qx132_prev_batch, prompt_source, 2)  # type: ignore[name-defined]
+            worker = _qx132_mistral_batch if engine == "mistral" else _qx132_prev_batch
+            items = await _a132.get_event_loop().run_in_executor(
+                _QX132_POOL, lambda: worker(prompt_source, 2))
             result[engine] = "%d quiz · %.1f s" % (len(items or []), _t132.time() - started)
         except Exception as error:
             result[engine] = "❌ %s" % str(error)[:70]
