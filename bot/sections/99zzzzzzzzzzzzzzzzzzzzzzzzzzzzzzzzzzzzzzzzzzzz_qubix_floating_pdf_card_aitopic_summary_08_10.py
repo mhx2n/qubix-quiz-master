@@ -60,7 +60,6 @@ class _QX134FloatStatus:
             with _cx134.suppress(Exception):
                 await self._bot.delete_message(
                     chat_id=self._chat_id, message_id=self.message_id)
-            kwargs.pop("reply_markup", None) if False else None
             fresh = None
             with _cx134.suppress(Exception):
                 fresh = await self._bot.send_message(
