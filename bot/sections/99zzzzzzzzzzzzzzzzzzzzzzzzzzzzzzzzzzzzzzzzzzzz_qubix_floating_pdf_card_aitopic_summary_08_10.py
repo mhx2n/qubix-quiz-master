@@ -307,11 +307,11 @@ async def cb_aitopic_regen_134(update, context):
         return
     with _cx134.suppress(Exception):
         await query.answer("নতুন করে তৈরি হচ্ছে…")
-    instructions = (str(row.get("instructions") or "")
-                    + "\nRegenerate variant %s: একই তথ্য রেখে নতুন গঠন ও ভাষায় লিখুন।"
-                    % int(_t134.time()) % 1000 if False else
-                    str(row.get("instructions") or "")
-                    + "\nRegenerate: একই তথ্য রেখে নতুন গঠন ও ভাষায় সাজিয়ে লিখুন।")
+    instructions = (
+        str(row.get("instructions") or "")
+        + "\nRegenerate #%s: একই তথ্য রেখে নতুন গঠন ও ভাষায় সাজিয়ে লিখুন।"
+        % (int(_t134.time()) % 1000)
+    )
     try:
         draft = await _a80.wait_for(  # type: ignore[name-defined]
             _a80.to_thread(_qx134_generate, row["source_text"], instructions),  # type: ignore[name-defined]
