@@ -51,9 +51,16 @@ _QX134_OWNER_SEED = {
     "maintenance_on", "maintenance_off", "mo", "mf",
     "quizprefix", "quizlink", "qp", "qex",
     "qapprove", "qrevoke", "qtrial", "qbots", "qkill", "qusers",
-    "genlimit", "setlimit", "features", "vision_on", "vision_off", "vo", "vf",
-    "explain_on", "explain_off", "exo", "exf", "scanhelp", "sch",
-    "reply", "close", "col", "filter",
+    "genlimit", "setlimit", "features",
+}
+
+# Staff-tier commands: real owner OR legacy admin/staff may use them; everyone
+# else gets the same silent drop.
+_QX134_STAFF_ONLY = {
+    "reply", "close", "col", "filter", "ban", "unban", "uban", "banned", "banl",
+    "vision_on", "vision_off", "vo", "vf", "explain_on", "explain_off",
+    "exo", "exf", "scanhelp", "sch", "private_send", "ps", "usersd", "uid",
+    "broadcast", "adminpanel",
 }
 
 _QX134_BLOCKED: set = set()
@@ -111,6 +118,16 @@ def _qx134_build():
     return _QX134_BLOCKED
 
 
+def _qx134_staff(uid) -> bool:
+    if _qx134_real_owner(uid):
+        return True
+    checker = globals().get("is_admin")
+    if callable(checker):
+        with _cx134.suppress(Exception):
+            return bool(checker(int(uid or 0)))
+    return False
+
+
 def _qx134_real_owner(uid) -> bool:
     checker = globals().get("_qx96_hard_owner")
     if callable(checker):
@@ -152,13 +169,16 @@ async def _qx134_guard(update, context):
         return
     text = getattr(message, "text", None) or getattr(message, "caption", None) or ""
     name = _qx134_command_token(text)
-    if not _qx134_is_owner_command(name):
+    if not name:
+        return
+    staff_tier = name in _QX134_STAFF_ONLY
+    if not staff_tier and not _qx134_is_owner_command(name):
         return
     user = getattr(update, "effective_user", None)
     uid = 0
     with _cx134.suppress(Exception):
         uid = int(getattr(user, "id", 0) or 0)
-    if _qx134_real_owner(uid):
+    if _qx134_staff(uid) if staff_tier else _qx134_real_owner(uid):
         return
     # Silent drop: absolutely no feedback so the command stays undiscoverable.
     _log134("silently dropped owner command /%s from uid=%s" % (name, uid))
