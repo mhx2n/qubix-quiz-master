@@ -188,6 +188,7 @@ async def _qx136_cmd_clear(update, context):
     _qx136_reset_generation_state(context, uid)
     with _cx136.suppress(Exception):
         await ok(update, "Buffer Cleared", "Previous generation session cleared. Reply to a new source to begin again.")  # type: ignore[name-defined]
+    raise ApplicationHandlerStop  # type: ignore[name-defined]
 
 
 _qx136_prev_done = globals().get("cmd_done")
@@ -208,6 +209,7 @@ async def _qx136_cmd_done(update, context):
     # the active source available for retry.
     if uid > 0 and before > 0 and after == 0:
         _qx136_reset_generation_state(context, uid)
+    raise ApplicationHandlerStop  # type: ignore[name-defined]
 
 
 cmd_clear = _qx136_cmd_clear
