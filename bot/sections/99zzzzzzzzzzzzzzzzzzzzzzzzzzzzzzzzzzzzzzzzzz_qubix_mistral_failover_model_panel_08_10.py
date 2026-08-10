@@ -166,7 +166,8 @@ def _qx132_mistral_raw(prompt, *, timeout=45, model=None):
     raise RuntimeError(last or "Mistral request failed")
 
 
-def _qx132_mistral_batch(source_text, need, *, easy=0, medium=0, hard=0, avoid_text=""):
+def _qx132_mistral_batch(source_text, need, *, easy=0, medium=0, hard=0,
+                         avoid_text="", record_stats=True):
     builder = globals().get("_make_fast_new_mcq_prompt_74")
     if not callable(builder):
         raise RuntimeError("prompt builder unavailable")
@@ -175,11 +176,13 @@ def _qx132_mistral_batch(source_text, need, *, easy=0, medium=0, hard=0, avoid_t
     try:
         raw = _qx132_mistral_raw(prompt, timeout=45)
     except Exception as error:
-        _qx132_note("mistral", False, (_t132.time() - started) * 1000, error=str(error))
+        if record_stats:
+            _qx132_note("mistral", False, (_t132.time() - started) * 1000, error=str(error))
         raise
     items = _qx132_parse(raw)
-    _qx132_note("mistral", bool(items), (_t132.time() - started) * 1000,
-                items=len(items), error="no valid MCQ JSON")
+    if record_stats:
+        _qx132_note("mistral", bool(items), (_t132.time() - started) * 1000,
+                    items=len(items), error="no valid MCQ JSON")
     return items
 
 
@@ -266,7 +269,7 @@ def _qx132_panel_text():
     for name, title in (("default", "Default chain"), ("mistral", "Mistral")):
         row = _QX132_STATS.get(name) or {}
         lines.append(
-            "│ %s — ok <b>%s</b> · fail <b>%s</b> · quiz <b>%s</b> · শেষ কল <b>%s</b>"
+            "│ %s — ok <b>%s</b> · fail <b>%s</b> · AI output <b>%s</b> · শেষ কল <b>%s</b>"
             % (h(title), row.get("ok", 0), row.get("fail", 0),  # type: ignore[name-defined]
                row.get("items", 0), _qx132_ms(row))
         )
@@ -302,9 +305,14 @@ async def _qx132_speed_test():
     for engine in ("default", "mistral"):
         started = _t132.time()
         try:
-            worker = _qx132_mistral_batch if engine == "mistral" else _qx132_prev_batch
-            items = await _a132.get_event_loop().run_in_executor(
-                _QX132_POOL, lambda: worker(prompt_source, 2))
+            if engine == "mistral":
+                items = await _a132.get_event_loop().run_in_executor(
+                    _QX132_POOL,
+                    lambda: _qx132_mistral_batch(prompt_source, 2, record_stats=False),
+                )
+            else:
+                items = await _a132.get_event_loop().run_in_executor(
+                    _QX132_POOL, lambda: _qx132_prev_batch(prompt_source, 2))
             result[engine] = "%d quiz · %.1f s" % (len(items or []), _t132.time() - started)
         except Exception as error:
             result[engine] = "❌ %s" % str(error)[:70]
