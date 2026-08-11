@@ -143,9 +143,11 @@ async def _qx139_run_blocking(uid, fn, *args, timeout):
 
 async def _qx139_extract_chunk(uid, chunk, lang, expected, semaphore):
     async with semaphore:
-        local = await _qx139_run_blocking(
-            uid, _qx139_local_rows, chunk, timeout=20,
-        ) or []
+        local = []
+        with _cx139.suppress(Exception):
+            local = await _qx139_run_blocking(
+                uid, _qx139_local_rows, chunk, timeout=20,
+            ) or []
         merged = []
         seen = set()
 
