@@ -27,6 +27,7 @@ _QX139_CREDIT = _re139.compile(
 )
 _QX139_EMPTY_WRAP = _re139.compile(r"\s*(?:\[\s*\]|【\s*】)\s*")
 _QX139_MD = _re139.compile(r"(?<!\\)(?:\*\*|__|`+)")
+_QX139_STAR_NOISE = _re139.compile(r"\*\s+\*(?:\s+\*)*")
 
 
 def _qx139_log(message, level="info"):
@@ -40,6 +41,7 @@ def _qx139_clean_option(value):
     if not text:
         return text
     text = _QX139_MD.sub("", text)
+    text = _QX139_STAR_NOISE.sub(" ", text)
     text = _QX139_EMPTY_WRAP.sub(" ", text)
     text = _QX139_CREDIT.sub(" ", text)
     text = _re139.sub(r"[ \t]+", " ", text).strip()
