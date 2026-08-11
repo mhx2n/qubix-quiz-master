@@ -43,6 +43,8 @@ _QX140_LABELS = [
     # "সঠিক উত্তর হলো (c)।"
     r"^\s*(?:সঠিক\s*)?উত্তর\s*(?:হলো|হবে|হল|is)\s*\(?\s*[a-dA-Dকখগঘ1-4১-৪]\s*\)?\s*[।.,:\-–—]?\s*",
     r"^\s*option\s*test\s*[:ঃ\-–—]?\s*",
+    # short answer-value prefix left before "ব্যাখ্যা:" e.g. "20 ব্যাখ্যা: …"
+    r"^\s*[^\n।.?!]{0,40}?(?:ব্যাখ্যা|ব্যখ্যা|explanation)\s*[:ঃ\-–—]\s*",
 ]
 _QX140_LABEL_RX = [_re140.compile(p, _re140.IGNORECASE) for p in _QX140_LABELS]
 _QX140_INLINE = [
