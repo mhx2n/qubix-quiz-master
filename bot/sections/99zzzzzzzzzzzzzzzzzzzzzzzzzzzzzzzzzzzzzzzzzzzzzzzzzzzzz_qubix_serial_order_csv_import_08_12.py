@@ -106,9 +106,16 @@ async def _qxv_harvest(update, context, uid, source_text, status=None, label="so
     workers = int(globals().get("_QX139_WORKERS") or 4)
     semaphore = _a142.Semaphore(max(1, min(workers, len(chunks))))
     started = _t142.time()
+
+    async def indexed(position, chunk, chunk_expected):
+        payload = ([], False)
+        with _cx142.suppress(Exception):
+            payload = await extract(uid, chunk, lang, chunk_expected, semaphore)
+        return position, payload
+
     tasks = [
-        _a142.create_task(extract(uid, chunk, lang, chunk_expected, semaphore))
-        for chunk, chunk_expected in zip(chunks, expected_by_chunk)
+        _a142.create_task(indexed(position, chunk, chunk_expected))
+        for position, (chunk, chunk_expected) in enumerate(zip(chunks, expected_by_chunk))
     ]
 
     results = {}
@@ -140,19 +147,13 @@ async def _qxv_harvest(update, context, uid, source_text, status=None, label="so
                 await card(status, found, expected or found, added, started)
 
     try:
-        pending = {task: index for index, task in enumerate(tasks)}
-        for task in _a142.as_completed(tasks):
-            payload = ([], False)
+        for future in _a142.as_completed(tasks):
+            index, payload = None, ([], False)
             with _cx142.suppress(Exception):
-                payload = await task
-            index = pending.get(task)
+                index, payload = await future
             if index is None:
-                # as_completed hands back wrapper futures on some loops
-                index = next(
-                    (i for i, t in enumerate(tasks) if t.done() and i not in results and i >= cursor),
-                    cursor,
-                )
-            results[index] = payload
+                continue
+            results[int(index)] = payload
             await flush_ready()
         await flush_ready()
     finally:
