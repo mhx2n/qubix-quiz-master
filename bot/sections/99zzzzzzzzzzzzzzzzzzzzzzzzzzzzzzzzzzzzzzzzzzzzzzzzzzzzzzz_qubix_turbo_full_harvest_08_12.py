@@ -307,3 +307,36 @@ async def _qxv_harvest(update, context, uid, source_text, status=None, label="so
 globals()["_qxv_harvest"] = _qxv_harvest
 _qx144_log("turbo full harvest active: %s lanes x %s questions, 10s live card"
            % (_QX144_LANES, _QX144_GROUP))
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Mistral rate-limit softening — many lanes means occasional 429s.  Instead of
+# reporting "সাময়িক লিমিট" straight away, wait briefly and retry across keys.
+# ═════════════════════════════════════════════════════════════════════════════
+import time as _sleep144
+
+_qx144_prev_mistral_raw = globals().get("_qx132_mistral_raw")
+
+if callable(_qx144_prev_mistral_raw):
+
+    def _qx132_mistral_raw(prompt, *, timeout=45, model=None):  # noqa: F811
+        delays = (0.0, 1.5, 3.5)
+        last = None
+        for delay in delays:
+            if delay:
+                _sleep144.sleep(delay)
+            try:
+                return _qx144_prev_mistral_raw(prompt, timeout=timeout, model=model)
+            except Exception as error:
+                last = error
+                text = str(error).lower()
+                transient = ("429" in text or "rate" in text or "limit" in text
+                             or "capacity" in text or "timeout" in text
+                             or " 500" in text or " 502" in text or " 503" in text
+                             or " 529" in text)
+                if not transient:
+                    raise
+        raise RuntimeError(str(last or "Mistral request failed"))
+
+    globals()["_qx132_mistral_raw"] = _qx132_mistral_raw
+    _qx144_log("mistral transient retry (3 attempts, backoff) active")
