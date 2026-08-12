@@ -216,6 +216,13 @@ async def _qx145_fast_harvest(update, context, uid, source_text, status, label, 
                 with _cx145.suppress(Exception):
                     await card(status, state["found"], expected,
                                state["added"], started)
+        # If an early group timed out, do not let its missing cursor hold every
+        # later completed group in memory. Mark absent positions empty, then
+        # flush all completed groups in their original source order.
+        if results:
+            last_ready = max(results)
+            for position in range(cursor, last_ready + 1):
+                results.setdefault(position, [])
         await flush_ready()
     finally:
         for task in tasks:
