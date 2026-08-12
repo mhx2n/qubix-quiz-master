@@ -18,12 +18,12 @@ import re as _re145
 import time as _t145
 
 
-_QX145_GROUP = 6
+_QX145_GROUP = 8
 _QX145_MAX_CHARS = 4200
 _QX145_LANES = 12
-_QX145_TIMEOUT = 42
-_QX145_RETRY_TIMEOUT = 34
-_QX145_TOTAL_BUDGET = 165.0
+_QX145_TIMEOUT = 35
+_QX145_RETRY_TIMEOUT = 27
+_QX145_TOTAL_BUDGET = 125.0
 _QX145_POOL = _Pool145(max_workers=_QX145_LANES, thread_name_prefix="harvest")
 
 
@@ -273,4 +273,4 @@ async def _qxv_harvest(update, context, uid, source_text, status=None, label="so
 
 
 globals()["_qxv_harvest"] = _qxv_harvest
-_qx145_log("bounded fast harvest active: 12 lanes x 6 questions, one grouped retry")
+_qx145_log("bounded fast harvest active: 12 lanes x 8 questions, one grouped retry")
