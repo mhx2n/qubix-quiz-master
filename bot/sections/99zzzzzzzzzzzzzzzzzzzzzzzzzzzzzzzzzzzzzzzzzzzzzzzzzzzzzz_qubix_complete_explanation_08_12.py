@@ -40,11 +40,18 @@ def _qx143_sentences(text):
     return [s.strip() for s in _QX143_SENT_RX.findall(str(text or "")) if s.strip()]
 
 
+def _qx143_unbalanced(text):
+    body = str(text or "")
+    return body.count("(") != body.count(")") or body.count("[") != body.count("]")
+
+
 def _qx143_looks_truncated(text):
     body = str(text or "").strip()
     if not body:
         return True
     if body[-1] not in _QX143_END:
+        return True
+    if _qx143_unbalanced(body):
         return True
     return bool(_QX143_DANGLE.search(body.rstrip(_QX143_END).strip()))
 
@@ -64,12 +71,13 @@ def _qx143_complete(text, budget=None):
     if not sentences:
         return ""
     end = _qx143_terminator(body)
-    kept, out = [], ""
+    kept = []
     for sentence in sentences:
-        candidate = (out + " " + sentence).strip() if out else sentence
+        candidate = (" ".join(kept + [sentence])).strip()
         if budget and len(candidate) > budget and kept:
             break
-        out, _ = candidate, kept.append(sentence)
+        kept.append(sentence)
+    out = " ".join(kept).strip()
     if not out:
         # single oversized sentence — cut on a word boundary, never mid-word
         limit = budget or 400
@@ -77,12 +85,22 @@ def _qx143_complete(text, budget=None):
         if len(sentences[0]) > limit and " " in out:
             out = out[: out.rfind(" ")]
     # drop a trailing clause that stops mid-thought when something remains
-    while len(kept) > 1 and _QX143_DANGLE.search(kept[-1].rstrip(_QX143_END).strip()):
+    while len(kept) > 1:
+        tail = kept[-1].strip()
+        core = tail.rstrip(_QX143_END).strip()
+        if tail[-1] in _QX143_END and not _QX143_DANGLE.search(core) and not _qx143_unbalanced(tail):
+            break
         kept.pop()
         out = " ".join(kept).strip()
     out = out.strip(" ,;:-–—")
     if not out:
         return ""
+    if _qx143_unbalanced(out):
+        with _cx143.suppress(Exception):
+            for opener, closer in (("(", ")"), ("[", "]")):
+                missing = out.count(opener) - out.count(closer)
+                if missing > 0:
+                    out = out.rstrip(_QX143_END).rstrip() + closer * missing
     if out[-1] not in _QX143_END:
         out = _QX143_DANGLE.sub("", out).strip(" ,;:-–—")
         if not out:
