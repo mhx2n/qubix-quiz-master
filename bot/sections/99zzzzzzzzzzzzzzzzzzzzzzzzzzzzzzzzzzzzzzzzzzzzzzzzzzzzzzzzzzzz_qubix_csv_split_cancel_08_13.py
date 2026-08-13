@@ -25,9 +25,28 @@ import time as _t146
 import uuid as _uuid146
 
 
-def _qx146_log(message, level="info"):
+def _qx146_log(message, *args, **kwargs):
+    """Section-safe logger: accepts (msg), (msg, level) and printf-style
+    (msg, *fmt_args[, level]) — never raises, never crashes a handler."""
     with _cx146.suppress(Exception):
-        getattr(logger, level)("[S146] %s", message)  # type: ignore[name-defined]
+        level = kwargs.pop("level", "info")
+        parts = list(args)
+        msg = None
+        # trailing known level keyword passed positionally, e.g. (msg, "warning")
+        if parts and isinstance(parts[-1], str) and parts[-1] in (
+                "debug", "info", "warning", "error", "critical"):
+            try:
+                msg = str(message) % tuple(parts[:-1]) if parts[:-1] else str(message)
+                level = parts[-1]
+                parts = []
+            except Exception:
+                msg = None
+        if msg is None:
+            try:
+                msg = str(message) % tuple(parts) if parts else str(message)
+            except Exception:
+                msg = str(message) + (" " + " ".join(str(p) for p in parts) if parts else "")
+        getattr(logger, str(level), logger.info)("[S146] %s", msg)  # type: ignore[name-defined]
 
 
 _QX146_BN = {ord(c): str(i) for i, c in enumerate("০১২৩৪৫৬৭৮৯")}
