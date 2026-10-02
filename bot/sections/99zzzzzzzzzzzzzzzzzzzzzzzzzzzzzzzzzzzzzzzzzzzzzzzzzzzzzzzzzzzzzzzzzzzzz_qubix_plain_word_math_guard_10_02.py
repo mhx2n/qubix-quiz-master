@@ -48,11 +48,11 @@ def _qx150_protect(text):
             window = text[max(0, start - 12):end + 12]
             if _QX150_MATHY.search(window):
                 return word
+        if len(tokens) >= 2000:
+            return word
         tokens.append(word)
         return "\ue150" + chr(0xE200 + len(tokens) - 1)
 
-    if len(tokens) > 3000:
-        return text, []
     return _QX150_RE.sub(_sub, text), tokens
 
 
