@@ -98,15 +98,33 @@ def _qx150_call(key, args, kwargs):
 _QX150_TARGETS = {
     "mathify_79", "_tg_plain_text", "_math_to_visible_68",
     "_light_latex_to_visible_66", "_advanced_latex_to_visible_67",
-    "_unicode_math_65", "_qx107_clean_math_text",
+    "_unicode_math_65", "_qx107_clean_math_text", "clean_latex",
+    "_ocr_visible_math_69", "clean_latex_for_telegram", "latex_to_unicode_65",
+    "_latex_to_unicode_67", "_unicode_math_66", "prettify_math_for_telegram",
+    "_light_latex_to_visible_88",
 }
 
 
 def _qx150_install():
     done = 0
     seen = set()
-    for value in list(globals().values()):
+    g = globals()
+    for gname, value in list(g.items()):
         if not isinstance(value, _types150.FunctionType):
+            continue
+        if (gname in _QX150_TARGETS and value.__code__.co_freevars
+                and not getattr(value, "_qx150_guarded", False)):
+            # closure wrappers (e.g. section 79 "inner") — rebind the name
+            ckey = "%s_c%d" % (gname, id(value))
+            _QX150_ORIG[ckey] = value
+
+            def _bound(*args, _k=ckey, **kwargs):
+                return _qx150_call(_k, args, kwargs)
+
+            _bound._qx150_guarded = True
+            _bound.__name__ = gname
+            g[gname] = _bound
+            done += 1
             continue
         if value.__name__ not in _QX150_TARGETS or id(value) in seen:
             continue
