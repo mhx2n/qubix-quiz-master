@@ -8,10 +8,10 @@
 #     stripped (math options like "1" vs "−1", "√3" vs "3") and re-shuffled
 #     the correct answer slot of the rest.
 #   • Section 81's language lock could drop rows in the "wrong" language.
-# CSV rows are the user's own finished quizzes, so they must be stored
-# verbatim. This overlay re-tags CSV payloads as "csv_import" at the outermost
-# buffer_add, and makes the store report the REAL number added.
-# Generation, OCR, harvest and all other flows are unchanged.
+#   • OCR option cleaners cut ratio options like "2 : 3" down to "3".
+# CSV rows are the user's own finished quizzes, so they are now stored
+# verbatim with source "csv_import", and the store reports the REAL number
+# added. Generation, OCR, harvest and all other flows are unchanged.
 # ──────────────────────────────────────────────────────────────────────────────
 
 import contextlib as _cx151
@@ -33,22 +33,78 @@ if callable(_qx151_prev_buffer_add):
 
 _qx151_prev_store = globals().get("_qxz_store_rows")
 
+
+def _qx151_count(uid):
+    try:
+        return int(buffer_count(uid) or 0)  # type: ignore[name-defined]
+    except Exception:
+        return -1
+
+
+def _qx151_store_csv(uid, rows):
+    """Store CSV rows exactly as written (no OCR cleaners, no AI-only gates)."""
+    added = dup = 0
+    seen = set()
+    fp = globals().get("_fp_question")
+    if callable(fp):
+        with _cx151.suppress(Exception):
+            for _row_id, existing in (buffer_list(uid, limit=99999) or []):  # type: ignore[name-defined]
+                seen.add(fp(existing))
+    limit = int(globals().get("MAX_BUFFERED_QUESTIONS") or 10 ** 6)
+    explain_on = True
+    with _cx151.suppress(Exception):
+        explain_on = bool(explain_mode_on(uid))  # type: ignore[name-defined]
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        question = str(row.get("question") or row.get("questions") or "").strip()
+        options = [str(o or "").strip() for o in (row.get("options") or []) if str(o or "").strip()][:5]
+        try:
+            answer = int(row.get("answer") or 0)
+        except Exception:
+            answer = 0
+        if not question or len(options) < 2 or not (1 <= answer <= len(options)):
+            continue
+        payload = {
+            "questions": question,
+            "answer": answer,
+            "explanation": (str(row.get("explanation") or "").strip()[:1000] if explain_on else ""),
+            "type": 1,
+            "section": 1,
+            "source": "csv_import",
+        }
+        for index in range(5):
+            payload["option%d" % (index + 1)] = options[index] if index < len(options) else ""
+        key = None
+        if callable(fp):
+            with _cx151.suppress(Exception):
+                key = fp(payload)
+        if key is not None and key in seen:
+            dup += 1
+            continue
+        before = _qx151_count(uid)
+        if before >= limit:
+            break
+        with _cx151.suppress(Exception):
+            buffer_add(uid, payload)  # type: ignore[name-defined]
+        after = _qx151_count(uid)
+        if before < 0 or after > before:
+            added += 1
+            if key is not None:
+                seen.add(key)
+    return added, dup
+
+
 if callable(_qx151_prev_store):
     def _qxz_store_rows(uid, rows, mode="std"):  # noqa: F811
         if str(mode or "").lower() != "csv":
             return _qx151_prev_store(uid, rows, mode)
-        before = None
-        with _cx151.suppress(Exception):
-            before = int(buffer_count(uid) or 0)  # type: ignore[name-defined]
-        added, dup = _qx151_prev_store(uid, rows, mode)
-        if before is not None:
+        try:
+            return _qx151_store_csv(int(uid), rows)
+        except Exception as error:
             with _cx151.suppress(Exception):
-                real = max(0, int(buffer_count(uid) or 0) - before)  # type: ignore[name-defined]
-                if real != int(added or 0):
-                    with _cx151.suppress(Exception):
-                        logger.warning("[S151] csv store reported %s but buffer grew %s", added, real)  # type: ignore[name-defined]
-                added = real
-        return added, dup
+                logger.warning("[S151] csv store fallback: %s", error)  # type: ignore[name-defined]
+            return _qx151_prev_store(uid, rows, mode)
 
     globals()["_qxz_store_rows"] = _qxz_store_rows
 
